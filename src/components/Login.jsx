@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, loginError }) {
   const [role, setRole] = useState('teacher');
-  const [schoolId, setSchoolId] = useState('');
+  const [schoolId, setSchoolId] = useState('SCH-101');
+  const [email, setEmail] = useState('mohan@tugulpurschool.com');
+  const [password, setPassword] = useState('12345');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin({
+
+    const loginPayload = {
       role,
       schoolId: schoolId || 'SCH-101',
-      name: role === 'teacher' ? 'GPS Primary School' : 'District Education Officer',
-    });
+      email: email || 'mohan@tugulpurschool.com',
+      password: password || '12345',
+      name: role === 'teacher' ? 'Mohan Kumar' : 'District Education Officer',
+    };
+
+    await onLogin(loginPayload);
   };
 
   return (
@@ -55,14 +62,32 @@ export default function Login({ onLogin }) {
             />
           </div>
           <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Password</label>
             <input
               type="password"
               required
-              defaultValue="123456"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
+
+          {loginError && (
+            <div className="bg-rose-50 text-rose-700 text-xs border border-rose-200 rounded-lg px-3 py-2">
+              {loginError}
+            </div>
+          )}
+
           <button
             type="submit"
             className={`w-full py-2.5 rounded-lg text-white font-semibold text-sm transition ${
