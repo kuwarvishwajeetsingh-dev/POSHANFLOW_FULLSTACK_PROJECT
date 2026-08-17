@@ -1,103 +1,50 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Accessibility, Building2, CalendarDays, ChevronRight, CircleHelp, Languages, LockKeyhole, Mail, ShieldCheck, SlidersVertical, UtensilsCrossed } from 'lucide-react';
 
-export default function Login({ onLogin, loginError }) {
-  const [role, setRole] = useState('teacher');
-  const [schoolId, setSchoolId] = useState('SCH-101');
-  const [email, setEmail] = useState('mohan@tugulpurschool.com');
-  const [password, setPassword] = useState('12345');
+const slides = ['/login-slides/school-meal.jpg', '/login-slides/school-water.jpg', '/login-slides/meal-distribution.jpg', '/login-slides/school-pump.jpg', '/login-slides/meal-service.jpg'];
+const languages = [['English', 'English'], ['हिन्दी', 'Hindi'], ['ଓଡ଼ିଆ', 'Odia'], ['অসমীয়া', 'Assamese'], ['বাংলা', 'Bengali'], ['ગુજરાતી', 'Gujarati'], ['ಕನ್ನಡ', 'Kannada'], ['മലയാളം', 'Malayalam'], ['मराठी', 'Marathi'], ['ਪੰਜਾਬੀ', 'Punjabi'], ['தமிழ்', 'Tamil'], ['తెలుగు', 'Telugu'], ['اردو', 'Urdu'], ['کٲشُر', 'Kashmiri']];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const loginPayload = {
-      role,
-      schoolId: schoolId || 'SCH-101',
-      email: email || 'mohan@tugulpurschool.com',
-      password: password || '12345',
-      name: role === 'teacher' ? 'Mohan Kumar' : 'District Education Officer',
-    };
-
-    await onLogin(loginPayload);
+export default function Login({ onLogin, onForgotPassword, loginError }) {
+  const [portal, setPortal] = useState('teacher');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [localMessage, setLocalMessage] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [language, setLanguage] = useState(languages[0]);
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const [textScale, setTextScale] = useState(0);
+  const teacher = portal === 'teacher';
+  const headerText = {
+    English: ['Ministry of Education', 'Pradhan Mantri Poshan Shakti Nirman', 'Home', 'About PM POSHAN', 'Help & Support', 'Need assistance?'],
+    Hindi: ['शिक्षा मंत्रालय', 'प्रधानमंत्री पोषण शक्ति निर्माण', 'मुख्य पृष्ठ', 'पीएम पोषण के बारे में', 'सहायता और समर्थन', 'सहायता चाहिए?'],
+    Odia: ['ଶିକ୍ଷା ମନ୍ତ୍ରାଳୟ', 'ପ୍ରଧାନମନ୍ତ୍ରୀ ପୋଷଣ ଶକ୍ତି ନିର୍ମାଣ', 'ମୁଖ୍ୟ ପୃଷ୍ଠା', 'ପିଏମ ପୋଷଣ ବିଷୟରେ', 'ସହାୟତା ଏବଂ ସମର୍ଥନ', 'ସହାୟତା ଆବଶ୍ୟକ କି?'],
+    Bengali: ['শিক্ষা মন্ত্রণালয়', 'প্রধানমন্ত্রী পোষণ শক্তি নির্মাণ', 'প্রধান পাতা', 'পিএম পোষণ সম্পর্কে', 'সহায়তা ও সমর্থন', 'সাহায্য প্রয়োজন?'],
+    Tamil: ['கல்வி அமைச்சகம்', 'பிரதமர் போஷன் சக்தி நிர்மாண்', 'முகப்பு', 'பிஎம் போஷன் பற்றி', 'உதவி மற்றும் ஆதரவு', 'உதவி தேவையா?'],
+    Telugu: ['విద్యా మంత్రిత్వ శాఖ', 'ప్రధానమంత్రి పోషణ శక్తి నిర్మాణ్', 'హోమ్', 'పీఎం పోషణ గురించి', 'సహాయం మరియు మద్దతు', 'సహాయం కావాలా?'],
   };
+  const copy = headerText[language[1]] || headerText.English;
+  useEffect(() => { document.documentElement.lang = language[1] === 'Hindi' ? 'hi' : 'en'; }, [language]);
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${16 + textScale}px`;
+    return () => { document.documentElement.style.fontSize = '16px'; };
+  }, [textScale]);
+  const signIn = async (event) => { event.preventDefault(); setLocalMessage(''); setLoading(true); try { await onLogin({ email: email.trim(), password, portal }); } catch (error) { setLocalMessage(error.message || 'An unexpected error occurred.'); } finally { setLoading(false); } };
+  const reset = async () => { if (!email.trim()) { setLocalMessage('Enter your email address first, then select Forgot password.'); return; } setResetting(true); setLocalMessage(''); setResetMessage(''); const result = await onForgotPassword(email); setResetting(false); if (result?.success) setResetMessage('If this email has an account, a password reset link has been sent.'); else setLocalMessage(result?.message || 'Unable to send password reset email.'); };
+  const utility = 'portal-icon-button';
 
-  return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md border border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-800 text-center mb-1">POSHANFLOW</h1>
-        <p className="text-slate-500 text-xs text-center mb-6">Mid-Day Meal Inventory Tracking</p>
-
-        <div className="flex bg-slate-100 p-1 rounded-lg mb-6 border border-slate-200">
-          <button
-            type="button"
-            onClick={() => setRole('teacher')}
-            className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
-              role === 'teacher' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'
-            }`}
-          >
-            Teacher / Headmaster
-          </button>
-          <button
-            type="button"
-            onClick={() => setRole('inspector')}
-            className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
-              role === 'inspector' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'
-            }`}
-          >
-            District Inspector
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              {role === 'teacher' ? 'School ID / Code' : 'Inspector ID'}
-            </label>
-            <input
-              type="text"
-              required
-              placeholder={role === 'teacher' ? 'e.g., SCH-101' : 'e.g., INS-802'}
-              value={schoolId}
-              onChange={(e) => setSchoolId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-
-          {loginError && (
-            <div className="bg-rose-50 text-rose-700 text-xs border border-rose-200 rounded-lg px-3 py-2">
-              {loginError}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className={`w-full py-2.5 rounded-lg text-white font-semibold text-sm transition ${
-              role === 'teacher' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
-            }`}
-          >
-            Login to Portal
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  return <div className="min-h-screen bg-[#1d3328] text-slate-800">
+    <div className="fixed right-0 top-[42%] z-40 flex items-end"><div className={`overflow-hidden rounded-l-xl bg-white shadow-2xl transition-all duration-200 ${accessibilityOpen ? 'w-44 border border-slate-200' : 'w-0 border-0'}`}><div className="p-3"><p className="mb-2 text-xs font-bold text-[#285843]">Text size</p><div className="flex items-center justify-between gap-1"><button type="button" onClick={() => setTextScale((size) => Math.max(-2, size - 1))} disabled={textScale <= -2} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="Decrease text size">A−</button><button type="button" onClick={() => setTextScale(0)} className="text-[11px] font-medium text-[#285843] underline underline-offset-2">Reset</button><button type="button" onClick={() => setTextScale((size) => Math.min(4, size + 1))} disabled={textScale >= 4} className="rounded-md bg-[#285843] px-2 py-1 text-xs font-bold text-white hover:bg-[#1c4232] disabled:opacity-40" aria-label="Increase text size">A+</button></div></div></div><button type="button" onClick={() => setAccessibilityOpen(!accessibilityOpen)} aria-expanded={accessibilityOpen} aria-label="Accessibility text size options" className="flex h-12 w-12 items-center justify-center rounded-l-xl border-y border-l border-white/30 bg-[#285843] text-white shadow-xl transition hover:bg-[#1c4232]"><Accessibility size={25} /></button></div>
+    <header className="sticky top-0 z-30 border-b border-white/15 bg-[#1d3328]/78 text-white shadow-xl backdrop-blur-lg" style={{ backgroundImage: "linear-gradient(90deg, rgba(29,51,40,0.94), rgba(29,51,40,0.72), rgba(29,51,40,0.9)), url('/login-slides/school-meal.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="mx-auto flex max-w-7xl items-center px-4 py-3 sm:px-6"><div className="flex items-center gap-3"><div className="flex h-12 w-11 items-center justify-center border border-white/25 bg-white/10 text-white"><Building2 size={26} strokeWidth={1.7} /></div><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#f7bd6a]">{copy[0]}</p><h1 className="text-xl font-bold tracking-tight sm:text-2xl">PM POSHAN</h1><p className="text-[11px] text-white/75 sm:text-xs">{copy[1]}</p></div></div><div className="ml-auto flex items-center gap-1 sm:gap-2"><div className="hidden items-center gap-1 border-r border-white/25 pr-3 md:flex"><button type="button" title="Accessibility options" className={utility}><SlidersVertical size={21} /></button><button type="button" title="Calendar" className={utility}><CalendarDays size={22} /></button><button type="button" title="Accessibility" className={utility}><Accessibility size={23} /></button></div><div className="relative border-r border-white/25 pr-2"><button type="button" title="Choose language" aria-expanded={languageOpen} onClick={() => setLanguageOpen(!languageOpen)} className="flex h-11 items-center gap-2 rounded-full px-2 text-sm font-medium text-white transition hover:bg-white/15"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3f855f] shadow-md"><Languages size={19} /></span><span className="hidden font-medium sm:inline">{language[1]}</span></button>{languageOpen && <div className="absolute right-0 top-12 z-50 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-2xl"><p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-wider text-[#285843]">Choose language</p>{languages.map((item) => <button key={item[1]} type="button" onClick={() => { setLanguage(item); setLanguageOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-[#edf5ef] ${language[1] === item[1] ? 'bg-[#edf5ef] font-semibold text-[#285843]' : ''}`}><span className="min-w-14 text-base">{item[0]}</span><span className="text-slate-600">- {item[1]}</span></button>)}</div>}</div><img src="/independence-day-2026.webp" alt="80th Independence Day 2026" className="h-11 w-24 rounded-lg border border-white/30 object-cover object-center shadow-lg sm:h-14 sm:w-36" /><button type="button" title="Menu" className={`${utility} ml-1 flex-col gap-1`}><span className="h-1 w-7 bg-[#f28c28]" /><span className="h-1 w-7 bg-white" /><span className="h-1 w-7 bg-[#16834a]" /></button></div></div>
+      <nav className="border-t border-white/10 bg-[#315442]/80"><div className="mx-auto flex max-w-7xl items-center px-4 sm:px-6"><span className="py-2 text-xs font-medium text-white">{copy[2]}</span><span className="hidden border-l border-white/15 px-4 py-2 text-xs text-white/80 sm:inline">{copy[3]}</span><span className="hidden border-l border-white/15 px-4 py-2 text-xs text-white/80 sm:inline">{copy[4]}</span><span className="ml-auto flex items-center gap-1 py-2 text-xs text-white/90"><CircleHelp size={14} /> {copy[5]}</span></div></nav>
+    </header>
+    <main className="relative isolate overflow-hidden"><div className="login-slide-track absolute inset-y-0 left-0 flex w-[250%]">{[...slides, ...slides].map((slide, index) => <img key={`${slide}-${index}`} src={slide} alt="" className="h-full w-[10%] shrink-0 object-cover" />)}</div><div className="login-tricolor-wash absolute inset-0" />
+      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:min-h-[calc(100vh-142px)] lg:grid-cols-[1.2fr_0.8fr] lg:py-16"><section className="max-w-xl lg:pl-8"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white"><UtensilsCrossed size={24} /></div><p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-[#f9bc62]">हर बच्चे के स्वस्थ भविष्य की ओर</p><h2 className="text-3xl font-bold leading-tight text-white sm:text-4xl">पोषण से सशक्त बचपन।<br />ज्ञान से उज्ज्वल भारत।</h2><p className="mt-5 max-w-lg text-sm leading-6 text-white/85">भारत के नन्हे बच्चों और युवा पीढ़ी को हर दिन पौष्टिक भोजन, बेहतर स्वास्थ्य और सीखने का अवसर देना हमारा संकल्प है। PM POSHAN के साथ हर निवाला सुरक्षित, संतुलित और हर बच्चे तक पहुँचता है।</p><div className="mt-8 grid gap-3 sm:grid-cols-2"><div className="flex gap-3 border-l-4 border-[#f28c28] bg-white/95 p-4 shadow-sm"><ShieldCheck className="shrink-0 text-[#285843]" size={21} /><div><p className="text-xs font-bold text-slate-700">सुरक्षित और भरोसेमंद</p><p className="mt-1 text-[11px] leading-4 text-slate-500">हर विद्यालय और हर भोजन की पारदर्शी निगरानी।</p></div></div><div className="flex gap-3 border-l-4 border-[#16834a] bg-white/95 p-4 shadow-sm"><Building2 className="shrink-0 text-[#285843]" size={21} /><div><p className="text-xs font-bold text-slate-700">हर स्कूल, हर बच्चा</p><p className="mt-1 text-[11px] leading-4 text-slate-500">समय पर जानकारी से बेहतर देखभाल और विकास।</p></div></div></div></section>
+      <section className="w-full border border-white/40 bg-white shadow-[0_8px_24px_rgba(23,51,40,0.35)]"><div className="border-b-4 border-[#e29a36] px-6 pb-4 pt-6"><img src="/poshanflow-logo.png" alt="PoshanFlow logo" className="mx-auto mb-4 h-16 w-16 rounded-full object-contain" /><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Authorised user login</p><h2 className="mt-1 text-xl font-bold text-[#285843]">Sign in to पोषणFlow</h2></div><div className="p-6"><div className="mb-6 grid grid-cols-2 border border-slate-300 bg-slate-50 p-1"><button type="button" onClick={() => setPortal('teacher')} className={`px-2 py-2 text-xs font-bold transition ${teacher ? 'bg-[#285843] text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>School Login</button><button type="button" onClick={() => setPortal('inspector')} className={`px-2 py-2 text-xs font-bold transition ${!teacher ? 'bg-[#285843] text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>District Login</button></div><p className="mb-5 text-xs text-slate-600">{teacher ? 'For Headmasters and authorised school staff.' : 'For District Inspectors and authorised officers.'}</p><form onSubmit={signIn} className="space-y-4"><div><label className="mb-1.5 block text-xs font-bold text-slate-700">Registered Email Address</label><div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="email" required autoComplete="email" placeholder="name@school.edu.in" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full border border-slate-300 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#285843] focus:ring-2 focus:ring-[#285843]/15" /></div></div><div><label className="mb-1.5 block text-xs font-bold text-slate-700">Password</label><div className="relative"><LockKeyhole size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="password" required autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full border border-slate-300 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#285843] focus:ring-2 focus:ring-[#285843]/15" /></div></div><div className="flex justify-end"><button type="button" disabled={resetting} onClick={reset} className="text-xs font-semibold text-[#285843] underline underline-offset-2 hover:text-[#b9701c] disabled:opacity-60">{resetting ? 'Sending reset email...' : 'Forgot password?'}</button></div>{(loginError || localMessage) && <div role="alert" className="border-l-4 border-rose-500 bg-rose-50 px-3 py-2 text-xs text-rose-700">{loginError || localMessage}</div>}{resetMessage && <div className="border-l-4 border-[#16834a] bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{resetMessage}</div>}<button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 bg-[#285843] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1c4232] disabled:cursor-not-allowed">{loading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <>Sign In <ChevronRight size={17} /></>}</button></form><p className="mt-5 border-t border-slate-200 pt-4 text-[11px] leading-4 text-slate-500">Teacher accounts are created and assigned by the District Inspector. Please contact your district office for account assistance.</p></div></section></div>
+    </main>
+    <footer className="border-t border-white/10 bg-[#1d3328]/90 text-white/70"><div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-2.5 text-[10px] sm:flex-row sm:items-center sm:justify-between sm:px-6"><span>© {new Date().getFullYear()} PM पोषण. Government of India.</span><span>Designed for Demonstration use only||changing rights resereved with Team Aryabytes &nbsp;|&nbsp; Privacy Policy &nbsp;|&nbsp; Accessibility Statement</span></div></footer>
+  </div>;
 }

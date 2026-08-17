@@ -1,0 +1,21 @@
+import React, { useState } from 'react';
+import { Check, Plus, UserRound, X } from 'lucide-react';
+import { apiService } from '../services/api';
+
+export default function AddTeacherModal({ isOpen, onClose, schools, onTeacherAdded }) {
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', schoolId: '', role: 'teacher' });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  if (!isOpen) return null;
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = async (event) => {
+    event.preventDefault(); setLoading(true); setError(''); setMessage('');
+    const result = await apiService.createTeacherAccount(form);
+    setLoading(false);
+    if (!result.success) { setError(result.message || 'Unable to create the teacher account.'); return; }
+    setMessage(`${form.fullName.trim()} has been added and assigned to the selected school.`);
+    setTimeout(() => { onTeacherAdded?.(result.teacher); onClose(); setForm({ fullName: '', email: '', password: '', schoolId: '', role: 'teacher' }); setMessage(''); }, 1200);
+  };
+  return <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl relative"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button><div className="flex items-center gap-2 mb-4"><div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><UserRound size={22} /></div><div><h3 className="font-bold text-lg text-slate-800">Create Teacher Login</h3><p className="text-xs text-slate-500">Creates the account and school assignment together</p></div></div>{schools.length === 0 ? <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">Create a school before adding a teacher.</p> : <form onSubmit={submit} className="space-y-4"><div><label className="block text-xs font-bold text-slate-600 mb-1">Full Name</label><input required value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div><div><label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label><input required type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div><div><label className="block text-xs font-bold text-slate-600 mb-1">Temporary Password</label><input required minLength="8" type="password" value={form.password} onChange={(e) => update('password', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /><p className="text-[11px] text-slate-400 mt-1">At least 8 characters.</p></div><div><label className="block text-xs font-bold text-slate-600 mb-1">Role</label><select value={form.role} onChange={(e) => update('role', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="teacher">Teacher</option><option value="headmaster">Headmaster</option></select></div><div><label className="block text-xs font-bold text-slate-600 mb-1">Assigned School</label><select required value={form.schoolId} onChange={(e) => update('schoolId', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="">Select a school</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.school_name} ({school.school_code})</option>)}</select></div>{error && <div className="bg-rose-50 text-rose-700 text-xs border border-rose-200 rounded-lg px-3 py-2">{error}</div>}{message && <div className="bg-emerald-50 text-emerald-700 text-xs border border-emerald-200 rounded-lg px-3 py-2 flex gap-2"><Check size={16} />{message}</div>}<div className="flex gap-3 pt-2"><button type="button" onClick={onClose} className="flex-1 py-2 text-xs font-semibold text-slate-600 border border-slate-300 rounded-lg">Cancel</button><button disabled={loading} className="flex-1 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg flex justify-center gap-1.5">{loading ? 'Creating...' : <><Plus size={16} /> Create Login</>}</button></div></form>}</div></div>;
+}

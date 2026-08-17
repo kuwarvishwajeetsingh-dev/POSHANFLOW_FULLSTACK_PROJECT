@@ -1,3 +1,93 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes login-background-pan {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes tricolor-wash {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes panel-logo-zoom {
+  0% { opacity: 0; transform: scale(.72); }
+  18% { opacity: 1; transform: scale(1.08); }
+  48% { opacity: 1; transform: scale(.94); }
+  76% { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.panel-entry-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  animation: panel-logo-zoom 1s ease-in-out forwards;
+  pointer-events: none;
+}
+
+.panel-entry-logo {
+  width: clamp(8rem, 30vw, 18rem);
+  height: clamp(8rem, 30vw, 18rem);
+  object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, .32));
+}
+
+.login-slide-track {
+  animation: login-background-pan 110s linear infinite;
+}
+
+.login-tricolor-wash {
+  background: linear-gradient(110deg, rgba(229, 111, 18, .68), rgba(255, 255, 255, .20), rgba(16, 112, 66, .68), rgba(11, 42, 96, .72), rgba(229, 111, 18, .58));
+  background-size: 260% 260%;
+  animation: tricolor-wash 24s ease-in-out infinite;
+}
+
+.portal-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  color: rgba(255, 255, 255, .92);
+  border-radius: 9999px;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.portal-icon-button:hover,
+.portal-icon-button:focus-visible {
+  color: #fff;
+  background: rgba(247, 189, 106, .23);
+  outline: 1px solid rgba(247, 189, 106, .75);
+  transform: translateY(-2px);
+}
+
+/* Keep the authentication card slightly more compact than the hero content. */
+main > div > section:last-child > div:first-child {
+  padding-top: 1.1rem;
+  padding-bottom: .7rem;
+}
+
+main > div > section:last-child > div:last-child {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+/* Softer chrome lets the hero visuals carry the page. */
+.min-h-screen > header {
+  background-color: rgba(60, 105, 79, .72) !important;
+}
+
+.min-h-screen > footer {
+  background-color: rgba(60, 105, 79, .82) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-slide-track, .login-tricolor-wash, .panel-entry-overlay { animation: none; }
+  .panel-entry-overlay { opacity: 0; }
+}
