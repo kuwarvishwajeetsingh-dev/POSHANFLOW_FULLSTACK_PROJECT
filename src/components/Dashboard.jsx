@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Clock,
   Download,
+  Fingerprint,
   LogOut,
   Plus,
   RefreshCw,
@@ -37,7 +38,6 @@ import * as XLSX from 'xlsx';
 import { apiService } from '../services/api';
 import { calculateRequirements } from '../utils/calculations';
 import { getIndiaDateString, formatIndiaDate, getIndiaWeekday } from '../utils/indiaDate';
-import StockUpdateModal from './StockUpdateModal';
 import ProfileModal from './ProfileModal';
 import AuditLogsView from './AuditLogsView';
 import FilterSection from './FilterSection';
@@ -66,6 +66,7 @@ export default function Dashboard({ user, onLogout }) {
   const [todaySubmitted, setTodaySubmitted] = useState(false);
   const [submittingAttendance, setSubmittingAttendance] = useState(false);
   const [attendanceMessage, setAttendanceMessage] = useState('');
+  const [showFingerprintNotice, setShowFingerprintNotice] = useState(false);
   
   const [attendanceLog, setAttendanceLog] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -95,7 +96,6 @@ export default function Dashboard({ user, onLogout }) {
   const [orderSent, setOrderSent] = useState(false);
   const [orderError, setOrderError] = useState('');
 
-  const [showStockModal, setShowStockModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [showAddSchoolModal, setShowAddSchoolModal] = useState(false);
@@ -109,6 +109,9 @@ export default function Dashboard({ user, onLogout }) {
   // Schools list & selection
   const [schools, setSchools] = useState([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState(user.schoolId || '');
+  const [enrollmentValue, setEnrollmentValue] = useState('');
+  const [savingEnrollment, setSavingEnrollment] = useState(false);
+  const [enrollmentMessage, setEnrollmentMessage] = useState('');
 
   const activeSchoolId = selectedSchoolId || user.schoolId || (schools[0]?.id ?? '');
 
@@ -218,6 +221,13 @@ export default function Dashboard({ user, onLogout }) {
       loadSchoolDashboardData(activeSchoolId);
     }
   }, [activeSchoolId, isSchoolOperator]);
+
+  useEffect(() => {
+    if (!isInspectorOrAdmin || !activeSchoolId) return;
+    const activeSchool = schools.find((school) => school.id === activeSchoolId);
+    setEnrollmentValue(activeSchool?.student_count ? String(activeSchool.student_count) : '');
+    setEnrollmentMessage('');
+  }, [activeSchoolId, isInspectorOrAdmin, schools]);
 
   useEffect(() => {
     if (isInspectorOrAdmin) {
@@ -376,6 +386,20 @@ export default function Dashboard({ user, onLogout }) {
     if (result.success) await loadInspectorDashboardData();
     else window.alert(result.message || 'Unable to update order status.');
     setUpdatingOrderId(null);
+  };
+
+  const handleEnrollmentSave = async (event) => {
+    event.preventDefault();
+    setSavingEnrollment(true);
+    setEnrollmentMessage('');
+    const result = await apiService.updateSchoolEnrollment(activeSchoolId, enrollmentValue);
+    if (result.success) {
+      setEnrollmentMessage('Enrolment saved; three-day stock thresholds recalculated.');
+      await refreshAllData();
+    } else {
+      setEnrollmentMessage(result.message || 'Could not update enrolment.');
+    }
+    setSavingEnrollment(false);
   };
 
   const handleFilterAlerts = async (filters) => {
@@ -699,6 +723,14 @@ export default function Dashboard({ user, onLogout }) {
               <p>Total Registered Schools: <span className="font-bold text-slate-800">{schools.length}</span></p>
               <p>Current Date (IST): <span className="font-semibold text-slate-700">{formatIndiaDate(getIndiaDateString())}</span></p>
             </div>
+            {isInspectorOrAdmin && (
+              <form onSubmit={handleEnrollmentSave} className="flex flex-wrap items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
+                <label className="text-[11px] font-bold text-slate-600">Enrolled students</label>
+                <input type="number" required min="1" step="1" value={enrollmentValue} onChange={(e) => setEnrollmentValue(e.target.value)} className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                <button disabled={savingEnrollment} className="rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-slate-900 disabled:bg-slate-300">{savingEnrollment ? 'Saving…' : 'Set threshold'}</button>
+                {enrollmentMessage && <p className={`w-full text-[11px] ${enrollmentMessage.startsWith('Enrolment saved') ? 'text-emerald-600' : 'text-rose-600'}`}>{enrollmentMessage}</p>}
+              </form>
+            )}
           </div>
         )}
 
@@ -770,6 +802,20 @@ export default function Dashboard({ user, onLogout }) {
                       )}
                       {todaySubmitted ? 'Update Today Attendance' : 'Submit Attendance'}
                     </button>
+
+                    <div className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => setShowFingerprintNotice((visible) => !visible)}
+                        aria-expanded={showFingerprintNotice}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Fingerprint size={16} /> Fingerprint
+                      </button>
+                      <div role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-72 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-4 text-white shadow-lg group-hover:block group-focus-within:block">
+                        Aadhaar fingerprint API integration is in progress. Once integrated, student fingerprints will mark attendance automatically.
+                      </div>
+                    </div>
                   </form>
 
                   {attendanceMessage && (
@@ -781,16 +827,14 @@ export default function Dashboard({ user, onLogout }) {
                       {attendanceMessage}
                     </p>
                   )}
+                  {showFingerprintNotice && (
+                    <p role="status" className="mt-2 max-w-xl rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-800">
+                      Aadhaar fingerprint API integration is in progress. Once integrated, student fingerprints will mark attendance automatically.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2 w-full md:w-auto">
-                  <button
-                    onClick={() => setShowStockModal(true)}
-                    disabled={!activeSchoolId}
-                    className="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white text-xs px-4 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition justify-center shadow-xs"
-                  >
-                    <ShoppingCart size={15} /> Update Physical Stock
-                  </button>
                   <button
                     onClick={() => setShowPOModal(true)}
                     disabled={!activeSchoolId}
@@ -828,13 +872,13 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             {/* Low Stock Alert Banner */}
-            {daysLeft < 3 && (stock.rice > 0 || stock.pulses > 0) && (
+            {alerts.some((alert) => alert.alert_type === 'low_stock') && (
               <div className="bg-amber-50 border border-amber-300 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-amber-900 shadow-xs">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="text-amber-600 shrink-0" size={22} />
                   <div>
                     <p className="font-bold text-sm">Low Stock Alert!</p>
-                    <p className="text-xs text-amber-700">Estimated ration reserve is under 3 days (~{daysLeft} days remaining at current attendance).</p>
+                    <p className="text-xs text-amber-700">One or more ration categories are at or below the school’s three-day reserve threshold.</p>
                   </div>
                 </div>
                 <button
@@ -1092,13 +1136,14 @@ export default function Dashboard({ user, onLogout }) {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-600 font-bold"><tr><th className="p-3">School</th><th className="p-3">Requested ration</th><th className="p-3">Status</th><th className="p-3 text-right">Action</th></tr></thead>
+                  <thead className="bg-slate-100 text-slate-600 font-bold"><tr><th className="p-3">School</th><th className="p-3">Requested ration</th><th className="p-3">Status</th><th className="p-3">Delivered date</th><th className="p-3 text-right">Action</th></tr></thead>
                   <tbody>
-                    {(inspectorData.ordersData || []).length === 0 ? <tr><td colSpan={4} className="p-5 text-center text-slate-400">No purchase demands yet.</td></tr> : inspectorData.ordersData.map((order) => (
+                    {(inspectorData.ordersData || []).length === 0 ? <tr><td colSpan={5} className="p-5 text-center text-slate-400">No purchase demands yet.</td></tr> : inspectorData.ordersData.map((order) => (
                       <tr key={order.id} className="border-b border-slate-100">
                         <td className="p-3 font-semibold text-slate-700">{order.school_name || schools.find((school) => String(school.id).trim().toLowerCase() === String(order.school_id).trim().toLowerCase())?.school_name || 'School name unavailable'}</td>
                         <td className="p-3 text-slate-600">{(order.purchase_order_items || []).map((item) => `${item.item_name}: ${item.quantity_kg} kg`).join(', ') || '—'}</td>
                         <td className="p-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${order.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{order.status}</span></td>
+                        <td className="p-3 text-slate-600">{order.delivered_at ? formatIndiaDate(order.delivered_at) : 'Not recorded'}</td>
                         <td className="p-3 text-right">{order.status !== 'delivered' && <button onClick={() => handleDeliverOrder(order.id)} disabled={updatingOrderId === order.id} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:bg-slate-300">{updatingOrderId === order.id ? 'Updating…' : 'Mark Delivered'}</button>}</td>
                       </tr>
                     ))}
@@ -1245,17 +1290,6 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
       )}
-
-      {/* Stock Update Modal */}
-      <StockUpdateModal
-        isOpen={showStockModal}
-        onClose={() => setShowStockModal(false)}
-        user={{ ...user, schoolId: activeSchoolId }}
-        onStockUpdated={() => {
-          loadSchoolDashboardData(activeSchoolId);
-          if (isInspectorOrAdmin) loadInspectorDashboardData();
-        }}
-      />
 
       {/* Profile Modal */}
       <ProfileModal

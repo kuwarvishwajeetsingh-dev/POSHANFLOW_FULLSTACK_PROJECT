@@ -6,6 +6,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSchoolAdded }) {
   const [schoolName, setSchoolName] = useState('');
   const [schoolCode, setSchoolCode] = useState('');
   const [district, setDistrict] = useState('');
+  const [studentCount, setStudentCount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -23,6 +24,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSchoolAdded }) {
         school_name: schoolName,
         school_code: schoolCode,
         district: district,
+        student_count: Number(studentCount),
       });
 
       if (res.success) {
@@ -33,6 +35,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSchoolAdded }) {
           setSchoolName('');
           setSchoolCode('');
           setDistrict('');
+          setStudentCount('');
           setSuccess('');
         }, 1200);
       } else {
@@ -100,6 +103,21 @@ export default function AddSchoolModal({ isOpen, onClose, onSchoolAdded }) {
               onChange={(e) => setDistrict(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Total Enrolled Students</label>
+            <input
+              type="number"
+              required
+              min="1"
+              step="1"
+              placeholder="e.g., 250"
+              value={studentCount}
+              onChange={(e) => setStudentCount(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">The system sets each ration alert threshold to three days of this school’s requirement.</p>
           </div>
 
           {error && (

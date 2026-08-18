@@ -312,7 +312,7 @@ export const apiService = {
   /**
    * Inspector registers a new school.
    */
-  addSchool: async ({ school_name, school_code, district }) => {
+  addSchool: async ({ school_name, school_code, district, student_count }) => {
     if (!isSupabaseConfigured) {
       return { success: false, message: 'Supabase not configured' };
     }
@@ -322,8 +322,9 @@ export const apiService = {
       if (!currentUser || !['inspector', 'admin'].includes(currentUser.role)) {
         return { success: false, message: 'Only a District Inspector can register schools.' };
       }
-      if (!school_name?.trim() || !school_code?.trim() || !district?.trim()) {
-        return { success: false, message: 'All school fields are required.' };
+      const enrolledStudents = Math.floor(Number(student_count));
+      if (!school_name?.trim() || !school_code?.trim() || !district?.trim() || !Number.isFinite(enrolledStudents) || enrolledStudents < 1) {
+        return { success: false, message: 'Enter all school details and a valid enrolled-student count.' };
       }
 
       const { data, error } = await supabase
@@ -332,6 +333,7 @@ export const apiService = {
           school_name: school_name.trim(),
           school_code: school_code.trim().toUpperCase(),
           district: district.trim(),
+          student_count: enrolledStudents,
         })
         .select();
 
@@ -346,12 +348,13 @@ export const apiService = {
 
       // Initialize default zero inventory stock rows for the new school
       if (newSchool?.id) {
+        const threeDayThresholds = { rice: enrolledStudents * 0.1 * 3, pulses: enrolledStudents * 0.02 * 3, oil: enrolledStudents * 0.005 * 3 };
         for (const item of ['rice', 'pulses', 'oil']) {
           await supabase.from('inventory_stock').upsert({
             school_id: newSchool.id,
             item_name: item,
             quantity_kg: 0,
-            reorder_level: item === 'rice' ? 10 : item === 'pulses' ? 5 : 2,
+            reorder_level: threeDayThresholds[item],
             last_updated: new Date().toISOString(),
           }, { onConflict: 'school_id,item_name' });
         }
@@ -362,6 +365,20 @@ export const apiService = {
       console.error('Add school failed:', error);
       return { success: false, message: error.message || 'Failed to add school.' };
     }
+  },
+
+  updateSchoolEnrollment: async (schoolId, studentCount) => {
+    const enrolledStudents = Math.floor(Number(studentCount));
+    if (!schoolId || !Number.isFinite(enrolledStudents) || enrolledStudents < 1) {
+      return { success: false, message: 'Enter a valid enrolled-student count.' };
+    }
+    if (!isSupabaseConfigured) return { success: false, message: 'Supabase not configured' };
+    const { data, error } = await supabase.rpc('set_school_enrollment_and_thresholds', {
+      p_school_id: schoolId,
+      p_student_count: enrolledStudents,
+    });
+    if (error || !data?.success) return { success: false, message: error?.message || 'Could not update the school threshold.' };
+    return { success: true, data };
   },
 
   // ==========================================
@@ -403,6 +420,7 @@ export const apiService = {
         .select(`
           id,
           order_date,
+          delivered_at,
           status,
           notes,
           purchase_order_items (
@@ -450,13 +468,13 @@ export const apiService = {
    * Records attendance for the current India calendar date.
    * Prevents duplicates by enforcing same-day upsert.
    */
-  saveAttendance: async (schoolId, userId, presentStudents) => {
+  saveAttendance: async (schoolId, userId, presentStudents, attendanceDate = getIndiaDateString()) => {
     if (!schoolId) {
       return { success: false, message: 'School ID is required to record attendance.' };
     }
 
     const studentsCount = Math.max(0, Number(presentStudents) || 0);
-    const today = getIndiaDateString();
+    const today = attendanceDate;
 
     const payload = {
       school_id: schoolId,
@@ -476,48 +494,14 @@ export const apiService = {
     }
 
     try {
-      // Read the previous value so editing today's attendance only deducts the
-      // difference, never the full class twice.
-      const { data: previous } = await supabase
-        .from('attendance_records')
-        .select('present_students')
-        .eq('school_id', schoolId)
-        .eq('attendance_date', today)
-        .maybeSingle();
-
-      const { data, error } = await supabase
-        .from('attendance_records')
-        .upsert(payload, { onConflict: 'school_id,attendance_date' })
-        .select();
-
+      const { data, error } = await supabase.rpc('save_attendance_and_consume_stock', {
+        p_school_id: schoolId,
+        p_user_id: userId || null,
+        p_attendance_date: today,
+        p_present_students: studentsCount,
+      });
       if (error) throw error;
-
-      const delta = studentsCount - Number(previous?.present_students || 0);
-      if (delta !== 0) {
-        const deductions = { rice: delta * 0.1, pulses: delta * 0.02, oil: delta * 0.005 };
-        const { data: currentStock } = await supabase
-          .from('inventory_stock')
-          .select('*')
-          .eq('school_id', schoolId);
-        for (const [itemName, amount] of Object.entries(deductions)) {
-          const row = (currentStock || []).find((item) => item.item_name?.toLowerCase() === itemName);
-          if (!row) continue;
-          await supabase.from('inventory_stock').upsert({
-            school_id: schoolId,
-            item_name: itemName,
-            quantity_kg: Math.max(0, Number(row.quantity_kg || 0) - amount),
-            reorder_level: Number(row.reorder_level || 0),
-            last_updated: new Date().toISOString(),
-          }, { onConflict: 'school_id,item_name' });
-        }
-      }
-
-      return {
-        success: true,
-        attendanceId: data?.[0]?.id,
-        attendanceDate: today,
-        students: studentsCount,
-      };
+      return { success: Boolean(data?.success), attendanceDate: today, students: studentsCount };
     } catch (error) {
       console.error('Supabase attendance save failed:', error);
       // If network failed mid-request, save to offline queue
@@ -614,6 +598,17 @@ export const apiService = {
         .select();
 
       if (error) throw error;
+
+      // Keep the alert table in sync with the quantity just saved. Without this,
+      // an alert raised while stock was low remains unresolved after a manual
+      // replenishment and is incorrectly shown to both school and inspector users.
+      const { error: alertRefreshError } = await supabase.rpc('refresh_low_stock_alerts', {
+        p_school_id: schoolId,
+      });
+      if (alertRefreshError) {
+        console.warn('Low-stock alert refresh failed:', alertRefreshError.message);
+      }
+
       return { success: true, data: data?.[0] };
     } catch (error) {
       console.error('Supabase stock update failed:', error);
@@ -714,11 +709,19 @@ export const apiService = {
       return { success: false, message: 'A valid order and status are required.' };
     }
     if (!isSupabaseConfigured) return { success: false, message: 'Supabase is not configured.' };
+    if (status === 'delivered') {
+      const { data, error } = await supabase.rpc('deliver_purchase_order_atomic', {
+        p_order_id: orderId,
+        p_actor_id: userId || null,
+      });
+      if (error || !data?.success) return { success: false, message: error?.message || 'Unable to record the delivery.' };
+      return { success: true, order: { id: orderId, school_id: data.school_id, status: 'delivered' } };
+    }
     const { data, error } = await supabase
       .from('purchase_orders')
       .update({ status })
       .eq('id', orderId)
-      .select('id, school_id, order_date, status')
+      .select('id, school_id, order_date, delivered_at, status')
       .maybeSingle();
     if (error) return { success: false, message: error.message };
     await apiService.createAuditLog(userId, data?.school_id || null, 'purchase_order_status_update', { orderId, status });
@@ -851,7 +854,7 @@ export const apiService = {
       // 5. Purchase orders across district
       const { data: orders, error: oErr } = await supabase
         .from('purchase_orders')
-        .select('id, school_id, order_date, status')
+        .select('id, school_id, order_date, delivered_at, status')
       if (oErr) console.warn('Inspector purchase orders unavailable:', oErr.message);
 
       const orderIds = (orders || []).map((order) => order.id);
@@ -975,23 +978,17 @@ export const apiService = {
           const res = await apiService.saveAttendance(
             item.payload.school_id,
             item.payload.recorded_by,
-            item.payload.present_students
+            item.payload.present_students,
+            item.payload.attendance_date
           );
           if (res.success && !res.queued) {
             await offlineQueue.remove(item.id);
             syncedCount++;
           }
         } else if (item.action === 'stock') {
-          const res = await apiService.updateInventoryStock(
-            item.payload.school_id,
-            item.payload.item_name,
-            item.payload.quantity_kg,
-            item.payload.reorder_level
-          );
-          if (res.success && !res.queued) {
-            await offlineQueue.remove(item.id);
-            syncedCount++;
-          }
+          // Physical stock edits are no longer permitted. Discard legacy queued
+          // updates instead of allowing an old teacher-side mutation to alter stock.
+          await offlineQueue.remove(item.id);
         } else if (item.action === 'purchase_order') {
           const res = await apiService.createPurchaseOrder(item.payload);
           if (res.success && !res.queued) {

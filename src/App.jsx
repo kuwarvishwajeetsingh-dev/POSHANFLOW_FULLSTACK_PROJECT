@@ -4,8 +4,18 @@ import Dashboard from './components/Dashboard';
 import ResetPassword from './components/ResetPassword';
 import { apiService } from './services/api';
 import { supabase } from './lib/supabase';
+import Explore from './components/Explore';
+import AboutPmPoshan from './components/AboutPmPoshan';
+import DeveloperPortfolio from './components/DeveloperPortfolio';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+
+function LoginRoute({ onLogin, onForgotPassword, loginError }) {
+  const location = useLocation();
+  return <Login onLogin={onLogin} onForgotPassword={onForgotPassword} loginError={loginError} loginContext={location.state?.loginContext || ''} />;
+}
 
 export default function App() {
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
@@ -107,8 +117,20 @@ export default function App() {
 
   return (
     <div className="relative">
-      {!user ? (
-        <Login onLogin={handleLogin} onForgotPassword={handleForgotPassword} loginError={loginError} />
+      {location.pathname === '/explore' ? (
+        <Explore />
+      ) : location.pathname === '/about-pm-poshan' ? (
+        <AboutPmPoshan />
+      ) : location.pathname === '/developer' ? (
+        <DeveloperPortfolio />
+      ) : !user ? (
+        <Routes>
+          <Route path="/" element={<LoginRoute onLogin={handleLogin} onForgotPassword={handleForgotPassword} loginError={loginError} />} />
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/about-pm-poshan" element={<AboutPmPoshan />} />
+          <Route path="/developer" element={<DeveloperPortfolio />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       ) : (
         <>
           <Dashboard user={user} onLogout={handleLogout} />
